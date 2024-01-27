@@ -2,7 +2,7 @@
 
 #[allow(unused_imports)]
 use gstd::{debug, exec, fmt, msg, prelude::*};
-use tamagotchi_interaction_io::{Tamagotchi, TmgAction, TmgEvent};
+use tamagotchi_nft_io::{Tamagotchi, TmgAction, TmgEvent};
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
@@ -25,6 +25,7 @@ extern fn init() {
         entertained_block: exec::block_height(),
         slept: 9999,
         slept_block: exec::block_height(),
+        approved_account: None,
     };
     debug!(
         "The Tamagotchi Program was initialized with name {:?} and birth date {:?}",
@@ -73,6 +74,32 @@ extern fn handle() {
                 FILL_PER_SLEEP,
             );
             debug!("Sleep action {:?}", &tamagotchi.slept.to_string());
+        }
+        TmgAction::Transfer(new_owner) => {
+            if msg::source() == tamagotchi.owner
+                || Some(msg::source()) == tamagotchi.approved_account
+            {
+                tamagotchi.owner = new_owner;
+                msg::reply(TmgEvent::Transferred(new_owner), 0).expect("Error in sending reply");
+            } else {
+                panic!("You don't have permission to do this action")
+            }
+        }
+        TmgAction::Approve(account) => {
+            if msg::source() == tamagotchi.owner {
+                tamagotchi.approved_account = Some(account);
+                msg::reply(TmgEvent::Approved(account), 0).expect("Error in sending reply");
+            } else {
+                panic!("You don't have permission to do this action")
+            }
+        }
+        TmgAction::RevokeApproval => {
+            if msg::source() == tamagotchi.owner {
+                tamagotchi.approved_account = None;
+                msg::reply(TmgEvent::ApprovalRevoked, 0).expect("Error in sending reply");
+            } else {
+                panic!("You don't have permission to do this action")
+            }
         }
     }
 }
