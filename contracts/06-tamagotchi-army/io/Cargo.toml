@@ -9,3 +9,4 @@ gmeta.workspace = true
 gstd.workspace = true
 sharded-fungible-token-io.workspace = true
 store-io.workspace = true
+tamagotchi-utils-io.workspace = true
