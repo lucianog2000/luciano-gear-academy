@@ -5661,6 +5661,8 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "gtest",
+ "sharded-fungible-token-io",
+ "store-io",
  "tamagotchi-army-io",
 ]
 
@@ -5670,6 +5672,8 @@ version = "0.3.3"
 dependencies = [
  "gmeta",
  "gstd",
+ "sharded-fungible-token-io",
+ "store-io",
 ]
 
 [[package]]
@@ -5678,6 +5682,8 @@ version = "0.3.3"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
+ "sharded-fungible-token-io",
+ "store-io",
  "tamagotchi-auto-io",
 ]
 
@@ -5687,6 +5693,8 @@ version = "0.3.3"
 dependencies = [
  "gmeta",
  "gstd",
+ "sharded-fungible-token-io",
+ "store-io",
 ]
 
 [[package]]
@@ -5748,6 +5756,26 @@ version = "0.3.3"
 dependencies = [
  "gmeta",
  "gstd",
+]
+
+[[package]]
+name = "tamagotchi-utils"
+version = "0.3.3"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "sharded-fungible-token-io",
+ "store-io",
+ "tamagotchi-utils-io",
+]
+
+[[package]]
+name = "tamagotchi-utils-io"
+version = "0.3.3"
+dependencies = [
+ "gmeta",
+ "gstd",
+ "store-io",
 ]
 
 [[package]]
