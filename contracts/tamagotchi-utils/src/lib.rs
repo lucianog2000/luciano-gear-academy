@@ -4,7 +4,7 @@
 use gstd::{async_main, debug, exec, fmt, msg, prelude::*, ActorId, ReservationId};
 use sharded_fungible_token_io::{FTokenAction, FTokenEvent, LogicAction};
 use store_io::{StoreAction, StoreEvent};
-use tamagotchi_utils_io::{GasReservationHandler, Tamagotchi, TmgAction, TmgEvent};
+use tamagotchi_utils_io::{GasReservationHandler, Tamagotchi, TmgAction, TmgEvent, TmgInit};
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 static mut GAS_RESERVATION_HANDLER: Option<GasReservationHandler> = None;
@@ -26,12 +26,12 @@ const MAX_STAT_VALUE: u32 = 10000;
 
 #[no_mangle]
 extern fn init() {
-    let init_message: String = msg::load().expect("Can't decode tamagotchi's name");
+    let init_config: TmgInit = msg::load().expect("Can't decode TmgInit");
     let current_block = exec::block_height();
     let tamagotchi = Tamagotchi {
-        name: init_message,
+        name: init_config.name,
         date_of_birth: exec::block_timestamp(),
-        owner: msg::source(),
+        owner: init_config.owner,
         fed: MAX_STAT_VALUE,
         fed_block: current_block,
         entertained: MAX_STAT_VALUE,
@@ -73,36 +73,43 @@ async fn main() {
 
     let tmg_action: TmgAction = msg::load().expect("Error loading TmgAction");
     match tmg_action {
-        TmgAction::Name => reply_with(&tamagotchi.name),
+        TmgAction::Name => {
+            msg::reply(TmgEvent::Name(tamagotchi.name.to_string()), 0)
+                .expect("Error in sending reply");
+        }
         TmgAction::Age => {
-            reply_with((exec::block_timestamp() - tamagotchi.date_of_birth).to_string())
+            let age = exec::block_timestamp() - tamagotchi.date_of_birth;
+            msg::reply(TmgEvent::Age(age), 0).expect("Error in sending reply");
         }
         TmgAction::Feed => {
-            fill_stat_and_reply(
+            fill_stat_and_update_block(
                 &mut tamagotchi.fed,
                 &mut tamagotchi.fed_block,
                 HUNGER_PER_BLOCK,
                 FILL_PER_FEED,
             );
             debug!("Feed action {:?}", &tamagotchi.fed.to_string());
+            msg::reply(TmgEvent::Fed, 0).expect("Error in sending reply");
         }
         TmgAction::Entertain => {
-            fill_stat_and_reply(
+            fill_stat_and_update_block(
                 &mut tamagotchi.entertained,
                 &mut tamagotchi.entertained_block,
                 BOREDOM_PER_BLOCK,
                 FILL_PER_ENTERTAINMENT,
             );
             debug!("Entertain action {:?}", &tamagotchi.entertained.to_string());
+            msg::reply(TmgEvent::Entertained, 0).expect("Error in sending reply");
         }
         TmgAction::Sleep => {
-            fill_stat_and_reply(
+            fill_stat_and_update_block(
                 &mut tamagotchi.slept,
                 &mut tamagotchi.slept_block,
                 ENERGY_PER_BLOCK,
                 FILL_PER_SLEEP,
             );
             debug!("Sleep action {:?}", &tamagotchi.slept.to_string());
+            msg::reply(TmgEvent::Slept, 0).expect("Error in sending reply");
         }
         TmgAction::Transfer(new_owner) => {
             if msg::source() == tamagotchi.owner
@@ -234,6 +241,10 @@ async fn main() {
             msg::reply(TmgEvent::GasReserved, 0)
                 .expect("Error in replying GasReserved event payload");
         }
+        TmgAction::Owner => {
+            msg::reply(TmgEvent::Owner(tamagotchi.owner), 0)
+                .expect("Error in replying Owner event payload");
+        }
     }
 }
 
@@ -253,11 +264,7 @@ extern fn state() {
     msg::reply(tamagotchi, 0).expect("Failed to share state");
 }
 
-fn reply_with<T: fmt::Display>(value: T) {
-    msg::reply(&value.to_string(), 0).expect("Error in sending reply");
-}
-
-fn fill_stat_and_reply(
+fn fill_stat_and_update_block(
     stat: &mut u32,
     stat_block: &mut u32,
     stat_wasted_per_block: u32,
@@ -267,8 +274,6 @@ fn fill_stat_and_reply(
 
     *stat = fill_stat_value(actual_value, fill_per_action);
     *stat_block = exec::block_height();
-
-    reply_with(*stat);
 }
 
 fn update_stat(stat_block: u32, stat_wasted_per_block: u32) -> u32 {

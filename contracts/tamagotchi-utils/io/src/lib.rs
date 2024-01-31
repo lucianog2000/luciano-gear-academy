@@ -49,6 +49,7 @@ pub enum TmgAction {
         reservation_amount: u64,
         duration: u32,
     },
+    Owner,
 }
 
 #[derive(Encode, Decode, TypeInfo, Eq, PartialEq)]
@@ -75,6 +76,7 @@ pub enum TmgEvent {
     NothingToDo,
     MakeReservation,
     GasReserved,
+    Owner(ActorId),
 }
 
 pub struct GasReservationHandler {
@@ -93,7 +95,7 @@ pub struct TmgInit {
 pub struct ProgramMetadata;
 
 impl Metadata for ProgramMetadata {
-    type Init = In<String>;
+    type Init = In<TmgInit>;
     type Reply = ();
     type Others = InOut<TmgAction, TmgEvent>;
     type Signal = ();

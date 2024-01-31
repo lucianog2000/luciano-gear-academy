@@ -1,4 +1,4 @@
-use tamagotchi_battle_io::ProgramMetadata;
+use tamagotchi_utils_io::ProgramMetadata;
 
 fn main() {
     gear_wasm_builder::build_with_metadata::<ProgramMetadata>();

@@ -5698,6 +5698,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "tamagotchi-battle"
+version = "0.3.3"
+dependencies = [
+ "gclient",
+ "gear-wasm-builder",
+ "gstd",
+ "store-io",
+ "tamagotchi-battle-io",
+ "tamagotchi-utils-io",
+ "tokio",
+]
+
+[[package]]
+name = "tamagotchi-battle-io"
+version = "0.3.3"
+dependencies = [
+ "gmeta",
+ "gstd",
+ "store-io",
+ "tamagotchi-utils-io",
+]
+
+[[package]]
 name = "tamagotchi-interaction"
 version = "0.3.3"
 dependencies = [
