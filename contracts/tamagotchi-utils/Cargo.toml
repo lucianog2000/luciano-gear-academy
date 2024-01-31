@@ -1,20 +1,17 @@
 [package]
-name = "tamagotchi-army"
+name = "tamagotchi-utils"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
 [dependencies]
 gstd.workspace = true
-tamagotchi-army-io.workspace = true
+tamagotchi-utils-io.workspace = true
 sharded-fungible-token-io.workspace = true
 store-io.workspace = true
-tamagotchi-utils-io.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
-tamagotchi-army-io.workspace = true
 tamagotchi-utils-io.workspace = true
-
-[dev-dependencies]
-gtest.workspace = true
+sharded-fungible-token-io.workspace = true
+store-io.workspace = true
