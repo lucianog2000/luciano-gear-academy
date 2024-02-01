@@ -1,10 +1,10 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use gstd::{debug, exec, fmt, msg, prelude::*};
-use tamagotchi_nft_io::{Tamagotchi, TmgAction, TmgEvent};
-
-// TODO: 5️⃣ Add the `approve_tokens` function
+use gstd::{async_main, debug, exec, fmt, msg, prelude::*, ActorId};
+use sharded_fungible_token_io::{FTokenAction, FTokenEvent, LogicAction};
+use store_io::{StoreAction, StoreEvent};
+use tamagotchi_shop_io::{Tamagotchi, TmgAction, TmgEvent};
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
 
@@ -28,6 +28,9 @@ extern fn init() {
         slept: 9999,
         slept_block: exec::block_height(),
         approved_account: None,
+        ft_contract_id: Default::default(),
+        transaction_id: Default::default(),
+        approve_transaction: None,
     };
     debug!(
         "The Tamagotchi Program was initialized with name {:?} and birth date {:?}",
@@ -36,8 +39,8 @@ extern fn init() {
     unsafe { TAMAGOTCHI = Some(tamagotchi) };
 }
 
-#[no_mangle]
-extern fn handle() {
+#[async_main]
+async fn main() {
     let tamagotchi = unsafe {
         TAMAGOTCHI
             .as_mut()
@@ -102,6 +105,24 @@ extern fn handle() {
             } else {
                 panic!("You don't have permission to do this action")
             }
+        }
+        TmgAction::SetFTokenContract(contract) => {
+            tamagotchi.ft_contract_id = Some(contract);
+            msg::reply(TmgEvent::FTokenContractSet, 0)
+                .expect("Error in a reply `TmgEvent::FTokenContractSet`");
+        }
+        TmgAction::ApproveTokens { account, amount } => {
+            approve_tokens(tamagotchi, &account, amount).await;
+            msg::reply(TmgEvent::TokensApproved { account, amount }, 0)
+                .expect("Error in a reply `TmgEvent::TokensApproved`");
+        }
+        TmgAction::BuyAttribute {
+            store_id,
+            attribute_id,
+        } => {
+            buy_attribute(&store_id, attribute_id).await;
+            msg::reply(TmgEvent::AttributeBought(attribute_id), 0)
+                .expect("Error in a reply `TmgEvent::AttributeBought`");
         }
     }
 }
@@ -169,4 +190,34 @@ fn update_stats(
     tamagotchi.slept -= calculate_current_stat_value(slept_block, ENERGY_PER_BLOCK)
         .max(1)
         .min(10000);
+}
+
+async fn approve_tokens(tamagotchi: &mut Tamagotchi, account: &ActorId, amount: u128) {
+    let _result_approve = msg::send_for_reply_as::<_, FTokenEvent>(
+        tamagotchi.ft_contract_id.unwrap(),
+        FTokenAction::Message {
+            transaction_id: tamagotchi.transaction_id,
+            payload: LogicAction::Approve {
+                approved_account: account.clone(),
+                amount,
+            },
+        },
+        0,
+        0,
+    )
+    .expect("Error in sending a message `FTokenAction::Message`")
+    .await;
+}
+
+async fn buy_attribute(store: &ActorId, attribute: u32) {
+    let _result_buy = msg::send_for_reply_as::<_, StoreEvent>(
+        store.clone(),
+        StoreAction::BuyAttribute {
+            attribute_id: attribute,
+        },
+        0,
+        0,
+    )
+    .expect("Error in sending a message `StoreAction::BuyAttribute`")
+    .await;
 }
