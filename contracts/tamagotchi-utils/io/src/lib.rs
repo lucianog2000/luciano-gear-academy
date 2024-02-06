@@ -93,7 +93,7 @@ pub struct TmgInit {
 pub struct ProgramMetadata;
 
 impl Metadata for ProgramMetadata {
-    type Init = In<String>;
+    type Init = In<TmgInit>;
     type Reply = ();
     type Others = InOut<TmgAction, TmgEvent>;
     type Signal = ();
