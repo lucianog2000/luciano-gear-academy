@@ -49,6 +49,7 @@ pub enum TmgAction {
         reservation_amount: u64,
         duration: u32,
     },
+    Owner,
 }
 
 #[derive(Encode, Decode, TypeInfo, Eq, PartialEq)]
@@ -75,6 +76,7 @@ pub enum TmgEvent {
     NothingToDo,
     MakeReservation,
     GasReserved,
+    Owner(ActorId),
 }
 
 pub struct GasReservationHandler {

@@ -241,6 +241,10 @@ async fn main() {
             msg::reply(TmgEvent::GasReserved, 0)
                 .expect("Error in replying GasReserved event payload");
         }
+        TmgAction::Owner => {
+            msg::reply(TmgEvent::Owner(tamagotchi.owner), 0)
+                .expect("Error in replying Owner event payload");
+        }
     }
 }
 
