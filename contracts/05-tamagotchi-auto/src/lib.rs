@@ -1,19 +1,27 @@
 #![no_std]
 
 #[allow(unused_imports)]
-use gstd::{async_main, debug, exec, fmt, msg, prelude::*, ActorId};
+use gstd::{async_main, debug, exec, fmt, msg, prelude::*, ActorId, ReservationId};
 use sharded_fungible_token_io::{FTokenAction, FTokenEvent, LogicAction};
 use store_io::{StoreAction, StoreEvent};
-use tamagotchi_auto_io::{Tamagotchi, TmgAction, TmgEvent};
+use tamagotchi_auto_io::{GasReservationHandler, Tamagotchi, TmgAction, TmgEvent};
 
 static mut TAMAGOTCHI: Option<Tamagotchi> = None;
+static mut GAS_RESERVATION_HANDLER: Option<GasReservationHandler> = None;
 
 const HUNGER_PER_BLOCK: u32 = 1;
-const BOREDOM_PER_BLOCK: u32 = 2;
-const ENERGY_PER_BLOCK: u32 = 2;
+const HUNGER_THRESHOLD: u32 = 2000;
 const FILL_PER_FEED: u32 = 1000;
+
+const BOREDOM_PER_BLOCK: u32 = 2;
+const BOREDOM_THRESHOLD: u32 = 2000;
 const FILL_PER_ENTERTAINMENT: u32 = 1000;
+
+const ENERGY_PER_BLOCK: u32 = 2;
+const ENERGY_THRESHOLD: u32 = 2000;
 const FILL_PER_SLEEP: u32 = 1000;
+
+const DELAY_OF_ONE_MINUTE: u32 = 20;
 const MAX_STAT_VALUE: u32 = 10000;
 
 #[no_mangle]
@@ -34,12 +42,21 @@ extern fn init() {
         ft_contract_id: Default::default(),
         transaction_id: Default::default(),
         approve_transaction: None,
+        reservations: Vec::new(),
     };
-    debug!(
+    let payload = format!(
         "The Tamagotchi Program was initialized with name {:?} and birth date {:?}",
-        tamagotchi.name, tamagotchi.date_of_birth,
+        tamagotchi.name, tamagotchi.date_of_birth
     );
-    unsafe { TAMAGOTCHI = Some(tamagotchi) };
+
+    unsafe {
+        TAMAGOTCHI = Some(tamagotchi);
+        GAS_RESERVATION_HANDLER = Some(GasReservationHandler {
+            contract_send_a_delayed_message: false,
+            can_send_delayed_message: false,
+        });
+    };
+    msg::reply(payload, 0).expect("error in reply");
 }
 
 #[async_main]
@@ -49,6 +66,10 @@ async fn main() {
             .as_mut()
             .expect("The contract is not initialized")
     };
+    let GasReservationHandler {
+        can_send_delayed_message,
+        contract_send_a_delayed_message,
+    } = gas_reservation_handler_state_mut();
 
     let tmg_action: TmgAction = msg::load().expect("Error loading TmgAction");
     match tmg_action {
@@ -126,6 +147,92 @@ async fn main() {
             buy_attribute(&store_id, attribute_id).await;
             msg::reply(TmgEvent::AttributeBought(attribute_id), 0)
                 .expect("Error in a reply `TmgEvent::AttributeBought`");
+        }
+        TmgAction::CheckState => {
+            let payload;
+
+            update_stats(
+                tamagotchi,
+                tamagotchi.fed_block,
+                tamagotchi.entertained_block,
+                tamagotchi.slept_block,
+            );
+
+            if tamagotchi.fed <= HUNGER_THRESHOLD {
+                payload = TmgEvent::FeedMe;
+            } else if tamagotchi.entertained <= BOREDOM_THRESHOLD {
+                payload = TmgEvent::PlayWithMe;
+            } else if tamagotchi.slept <= ENERGY_THRESHOLD {
+                payload = TmgEvent::WantToSleep;
+            } else {
+                payload = TmgEvent::NothingToDo;
+            }
+
+            if exec::program_id() != msg::source() {
+                msg::reply(payload, 0).expect("Error in reply");
+                return;
+            }
+
+            if tamagotchi.reservations.len() == 1 {
+                *can_send_delayed_message = false;
+                *contract_send_a_delayed_message = false;
+                let Some(reservation_id) = tamagotchi.reservations.pop() else {
+                    panic!("Error getting reservation id");
+                };
+
+                msg::send_delayed_from_reservation(
+                    reservation_id,
+                    tamagotchi.owner,
+                    TmgEvent::MakeReservation,
+                    0,
+                    DELAY_OF_ONE_MINUTE,
+                )
+                .expect("Error sending message from reservation");
+            } else {
+                let Some(reservation_id) = tamagotchi.reservations.pop() else {
+                    panic!("Error getting reservation id");
+                };
+
+                msg::send_delayed_from_reservation(
+                    reservation_id,
+                    exec::program_id(),
+                    TmgAction::CheckState,
+                    0,
+                    DELAY_OF_ONE_MINUTE,
+                )
+                .expect("Error sending message from reservation");
+            }
+        }
+        TmgAction::ReserveGas {
+            reservation_amount,
+            duration,
+        } => {
+            let reservation_id = ReservationId::reserve(reservation_amount, duration)
+                .expect("Error in reserving gas");
+            tamagotchi.reservations.push(reservation_id);
+
+            if tamagotchi.reservations.len() >= 3 {
+                *can_send_delayed_message = true;
+            }
+
+            if *can_send_delayed_message && !(*contract_send_a_delayed_message) {
+                *contract_send_a_delayed_message = true;
+                let Some(reservation_id) = tamagotchi.reservations.pop() else {
+                    panic!("Error getting reservation id");
+                };
+
+                msg::send_delayed_from_reservation(
+                    reservation_id,
+                    exec::program_id(),
+                    TmgAction::CheckState,
+                    0,
+                    DELAY_OF_ONE_MINUTE,
+                )
+                .expect("Error sending message from reservation");
+            }
+
+            msg::reply(TmgEvent::GasReserved, 0)
+                .expect("Error in replying GasReserved event payload");
         }
     }
 }
@@ -217,4 +324,10 @@ async fn buy_attribute(store: &ActorId, attribute: u32) {
     )
     .expect("Error in sending a message `StoreAction::BuyAttribute`")
     .await;
+}
+
+fn gas_reservation_handler_state_mut() -> &'static mut GasReservationHandler {
+    let state = unsafe { GAS_RESERVATION_HANDLER.as_mut() };
+    debug_assert!(state.is_some(), "State is not initialized");
+    unsafe { state.unwrap_unchecked() }
 }
