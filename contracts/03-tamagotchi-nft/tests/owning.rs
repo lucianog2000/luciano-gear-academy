@@ -1,5 +1,6 @@
+use gstd::ActorId;
 use gtest::{Log, Program, System};
-use tamagotchi_interaction_io::{Tamagotchi, TmgAction};
+use tamagotchi_nft_io::{TmgAction, TmgEvent};
 #[test]
 fn smoke_test() {
     // test contract initialization
@@ -38,7 +39,24 @@ fn interaction_test() {
 fn owning_test() {
     let sys = System::new();
     sys.init_logger();
-    let _program = Program::current(&sys);
+    let program = Program::current(&sys);
 
-    // TODO: 6️⃣ Test new functionality
+    let init_response = program.send(2, String::from("Luchex"));
+    assert!(!init_response.main_failed());
+
+    let transfer_response = program.send(2, TmgAction::Transfer(ActorId::from(1234)));
+    let expected_log = Log::builder()
+        .dest(2)
+        .payload(TmgEvent::Transferred(ActorId::from(1234)));
+    assert!(transfer_response.contains(&expected_log));
+
+    let approve_response = program.send(1234, TmgAction::Approve(ActorId::from(5678)));
+    let expected_log = Log::builder()
+        .dest(1234)
+        .payload(TmgEvent::Approved(ActorId::from(5678)));
+    assert!(approve_response.contains(&expected_log));
+
+    let revoke_approval_response = program.send(1234, TmgAction::RevokeApproval);
+    let expected_log = Log::builder().dest(1234).payload(TmgEvent::ApprovalRevoked);
+    assert!(revoke_approval_response.contains(&expected_log));
 }
